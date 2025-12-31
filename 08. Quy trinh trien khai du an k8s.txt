@@ -1,0 +1,8 @@
+Quy trinh trien khai du an k8s
+
+Vi du mua banh:
+Di den cua hang noi voi bao ve toi muon mua banh-> bao ve(o cua hang) -> truyen dat voi nhan vien trong tiem la co khach dang vao -> di vao trong tien se co 1 nhan vien tu van den hoi muon mua loai banh gi -> khach noi muon mua banh ngot -> nhan vien tu van chi den quay banh ngot -> nhan vien ban hang tu van
+
+=> Kubernetes flow -> 2 flow -> architecture
+                             -> development
+Traffic => Ingress => Service => Node (co cac Pod) => Output la traffic => nghien cuu tu pod => service, ingress

@@ -1,0 +1,173 @@
+Các bước cài k8s
+B1: Update và Upgrade server (apt update -y && apt upgrade -y)
+B2: Them 1 user (adduser devops), thuc te khong nen su dung k8s trong user root, them user vao trong group sudo de no co cac quyen thuc thi, su qua user do roi cd
+B3: k8s se yeu cau tat swap de ket noi den api cua k8s => sudo swapoff -a (off tam thoi), de tat vinh vien se nam trong /etc/fstab => tat swap de khi pod dung qua RAM se cho kubelet biet va scheduler reschedule lai.
+learn-k8s@k8s-master-1:~$ cat /etc/fstab
+# /etc/fstab: static file system information.
+#
+# Use 'blkid' to print the universally unique identifier for a
+# device; this may be used with UUID= as a more robust way to name devices
+# that works even if disks are added and removed. See fstab(5).
+#
+# <file system> <mount point>   <type>  <options>       <dump>  <pass>
+# / was on /dev/ubuntu-vg/ubuntu-lv during curtin installation
+/dev/disk/by-id/dm-uuid-LVM-Dq95HZLY0FFu2QwrURNFPrppTIOEoDyDAHvCS020t6Q1hPFQ4MDWTSMQZBmGKotG / ext4 defaults 0 1
+# /boot was on /dev/sda2 during curtin installation
+/dev/disk/by-uuid/739b79f0-740c-4c31-bbe1-a0590c9e0a87 /boot ext4 defaults 0 1
+/swap.img       none    swap    sw      0       0
+
+=> phai comment swap.img de khi khoi dong se khong bi bat len => sudo sed -i '/swap.img/s/^/#/' /etc/fstab
+
+=> cau hinh module kernel
+- Cai dat containerd => sudo vi /etc/modules-load.d/containerd.conf => overlay va br_netfilter lad module kernel cua Linux, containerd la 1 runtime gg cloud dang su dung, container co cong viec pull image, tao container, quan ly lifecycle container, giao tiep voi kernel
+- overlay la kernel module => cho phep chong nhieu filesystem layer, container dung image layer
+- br_netfilter la kernel module => cho phep iptables xu ly traffic bridge, k8s quan ly network pod, no la nang luc network cua kernel
+=> Khi cai containerd phai cau hinh overlay & br_netfilter vi containerd + k8s can kernel co du nang luc chay container va network pod. Containerd dung overlay, CNI + kube_proxy dung br_netfilter
+
+sudo vi /etc/modules-load.d/containerd.conf
+  => overlay
+  => br_netfilter
+=> khi server boot len system se tu dong load overlay, br_netfilter => khong phai modprobe tay moi lan reboot
+=> Tai module kernel
+   sudo modprobe overlay => load overlayFS vao kernel ngay lap tuc
+   sudo modprobe br_netfilter => load br_netfilter vao kernel ngay lap tuc
+
+=> cau hinh he thong mang
+vi /etc/sysctl.d/Kubernetes.conf => file cau hinh kernel runtime => bat nang luc network cho Linux kernel, cho phep k8s dieu khien traffic pod
+net.bridge.bridge-nf-call-ip6tables = 1 => tuong tu nhu iptables 
+net.bridge.bridge-nf-call-iptables = 1 => k8s can de kube-proxy tao service (ClusterIP), NAT pod <-> service, NetworkPolicy (Calico/Cilium) => k8s kiem soat duoc traffic => neu iptables ko bat duoc packet bridge -> pod goi service FAIL, cho pod noi chuyen.
+net.ipv4.ip_forward = 1=> pod khong ra internet, ra ngoai node, pod chi noi chuyen duoc trong cung namespace
+
+=> test => sudo sysctl system => ap dung vao ngay kernel, khong can rebooot
+
+=> Cai dat cac goi can thien va them kho docker
+sudo apt install -y curl gnupg2 software-properties-common apt-transport-https ca-certificates =< cai de apt tin tuong va cai docker
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/docker.gpg
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+=> containerd.io duoc docker build va phan phoi on dinh nhat qua cac repo Docker
+
+=> Cap nhat va cai dat cum containerd
+sudo apt update -y => vua them repo moi => apt can tai metadate, biet co goi containerd,io => khong update => apt khong thay containerd.io.
+sudo apt install -y containerd.io => k8s khong chay container, containerd moi la app chay container
+, tu k8s 1.24x docker bi loai va kubelet chi noi chuyen voi containerd, CRI-0 => khong co containerd => k8s khong chay duoc pod.
+=> Cau hinh containerd
+containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1 => default behavior khong phu hop voi k8s => tao config de chinh dung cho kubelet
+sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml => k8s dung system lam init system, kubelet dung system cgroup driver
+
+=> Khoi dong lai va enable, kiem tra trang thai
+sudo systemctl restart containerd => load config moi
+sudo systemctl enable containerd => tu start khi reboot
+systemctl status containerd
+
+=> De cum k8s hoat dong duoc can 3 thanh phan la kubelet, kubeadm, kubectl
+=> them cac goi cua cac thanh phan
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+=> repo Ubuntu khong co kubelet, kubeadm, kubectl => k8s phan phoi qua repo OS => muon cai phai bat buoc them repo chinh thuc
+=> phai them GPG ket vi dung de xac thuc goi dung cua k8s, khong bi gia mao
+
+=> Cai dat cac goi k8s
+=> khi them bat cu gia tri nao trong he thong thi can phai update lai
+sudo apt update -y
+sudo apt install -y kubelet kubeadm kubectl
+=> kubelet chay tren moi node(master + worker) => noi chuyen voi containerd, tao/xoa pod, bao trang thai node ve control-plane, ko co kubelet thi node khong ton tai trong cluster, kubelet = trai tim cua node
+=> kubeadm => cong cu bootstrap cluster => dung khi kubeadm init, kubeadm join => sau khi cluster chay => kubeadm khong tham gia van hanh => kubeadm = tho xay nho, xay xong => rut
+=> kubectl => client dieu khien cluster => dung tren may admin hoac master node, chi la CLI, gui request den kube-apiserver => kubectl khong anh huong cluster neu khong chay => kubectl = remote control.
+=> sau khi cai dat xong len hold lai version, boi vi khi chay lenh apt update, apt upgrade thi he thong se cap nhat cac goi package len, neu khong hold lai version => 1 vai thanh phan se duoc cap nhat len => cum kha nang bi loi
+sudo apt-mark hold kubelet kubeadm kubectl
+
+=> Chon server k8s-master-1 lam master, 2 server kia la worker
+
+=> tren server k8s-master-1
+sudo kubeadm init
+=> Can luu y 2 phan => tao thu muc /.kube o server k8s-master-1 o user hien tai (learn-k8s)
+=> copy thu muc config cua admin vao trong thu muc do
+=> thay doi chu so hu de co the su dung duoc
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+=> them cac node vao trong cum k8s
+kubeadm join 192.168.31.111:6443 --token bj20f9.dppc3vqshbb8ka43 \
+        --discovery-token-ca-cert-hash sha256:4273e43d117c2ad9cd4e40ce5fe298e9a24ab2fa0473f89b882d162377392ef2
+
+=> cac buoc nhu sau:
+mkdir -o $HOME/.kube
+sudo cp -i /etc/Kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+=> kiem tra nodes
+kubectl get nodes
+learn-k8s@k8s-master-1:~$ kubectl get nodes
+NAME           STATUS     ROLES           AGE     VERSION
+k8s-master-1   NotReady   control-plane   4m30s   v1.30.14
+=> xong phan 1
+
+=> phan 2: them server 2 va server 3 vao k8s-master-2 va k8s-master-3
+sudo kubeadm join 192.168.31.111:6443 --token bj20f9.dppc3vqshbb8ka43 \
+        --discovery-token-ca-cert-hash sha256:4273e43d117c2ad9cd4e40ce5fe298e9a24ab2fa0473f89b882d162377392ef2
+
+* Luu y net.ipv4.ip_forward = 1 o ca 3 server, ipv4, overlay, net_filter phai duoc load, cac config network phai ok
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+
+=> o server 2 va server 3 neu dung kubectl get nodes => se khong duoc boi no chi la worker, master moi duoc
+learn-k8s@k8s-master-2:~$ kubectl get nodes
+E1224 10:10:51.015592   31025 memcache.go:265] couldn't get current server API group list: Get "http://localhost:8080/api?timeout=32s": dial tcp 127.0.0.1:8080: connect: connection refused
+E1224 10:10:51.016150   31025 memcache.go:265] couldn't get current server API group list: Get "http://localhost:8080/api?timeout=32s": dial tcp 127.0.0.1:8080: connect: connection refused
+E1224 10:10:51.018294   31025 memcache.go:265] couldn't get current server API group list: Get "http://localhost:8080/api?timeout=32s": dial tcp 127.0.0.1:8080: connect: connection refused
+E1224 10:10:51.018920   31025 memcache.go:265] couldn't get current server API group list: Get "http://localhost:8080/api?timeout=32s": dial tcp 127.0.0.1:8080: connect: connection refused
+E1224 10:10:51.020615   31025 memcache.go:265] couldn't get current server API group list: Get "http://localhost:8080/api?timeout=32s": dial tcp 127.0.0.1:8080: connect: connection refused
+The connection to the server localhost:8080 was refused - did you specify the right host or port?
+
+learn-k8s@k8s-master-1:~$ kubectl get nodes
+NAME           STATUS     ROLES           AGE    VERSION
+k8s-master-1   NotReady   control-plane   10m    v1.30.14
+k8s-master-2   NotReady   <none>          118s   v1.30.14
+k8s-master-3   NotReady   <none>          107s   v1.30.14
+
+=> de cum k8s hoat dong duoc => them network, network o day la calio, them tren k8s-master-1
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
+
+=> cac du an duoc trien khai tren k8s-master-2 va k8s-master-3 => k8s-master-1 chi co vai tro quan ly, control.
+
+
+
+
+*** 3 master worker
+=> khi da co tren => reset cum => khoi dong lai tu dau
+=> chay tren tat ca cac server 
+sudo kubeadm  reset -f 
+sudo rm -rf /var/lib/etcd => luu trang thai cua cum => muon reset phai xoa 
+sudo rm -r /etc/kubernetes/manifests/*
+
+trong server k8s-master-1 => kubectl get node => se khong co cum nao duoc trien khai
+
+trong server k8s-master-1 => sudo kubeadm init --control-plane-endpoint "192.168.31.111:6443" --upload-certs
+=> upload-certs de xac thuc cho cac server khac muon join vao
+
+3 luu y o server k8s-master-1 =>
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Tren server k8s-master-1 va k8s-master-2 =>
+ kubeadm join 192.168.31.111:6443 --token 49z4yg.rh9wmql378xgkdec \
+        --discovery-token-ca-cert-hash sha256:3bc2c3952375b588eda26471f73cdf22b4989db1b7cd7a6ee1d9e87a043f0be7 \
+        --control-plane --certificate-key 3bdf924eaab161e74a915b33adcddde15afc21a70bee6908f4c2c9143e2b9ab8
+
+neu muon su dung tren ca k8s-master-2 va k8s-master-3:
+        mkdir -p $HOME/.kube
+        sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+        sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+=> luc nay ca 3 deu dung duoc kubectl get no => nhung ca 3 deu la control-plane => chua ai lam worker => can 1 buoc nua:
+trong server k8s-master-1:
+kubectl taint nodes k8s-master-1 node-role.kubernetes.io/control-plane:NoSchedule-
+=> k8s-master-1 se la control-planbe => ket qua se nhu sau
+node/k8s-master-1 untainted
+ap dung cho ca 3
+kubectl taint nodes k8s-master-1 node-role.kubernetes.io/control-plane:NoSchedule-
+kubectl taint nodes k8s-master-2 node-role.kubernetes.io/control-plane:NoSchedule-
+kubectl taint nodes k8s-master-3 node-role.kubernetes.io/control-plane:NoSchedule-
