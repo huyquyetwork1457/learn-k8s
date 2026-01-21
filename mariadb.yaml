@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    objectset.rio.cattle.io/applied: >-
+      H4sIAAAAAAAA/3ySX2/TMBTFv8t9Ttq1aUOaNzQkXjZaVjSEUDVdOzfUzP+wbyKmyt8duS2jTNOe4lyf/M7JsQ+AXt1TiMpZaAG9j9NxBgU8KttBC1tGpn7QW2IowBBjh4zQHgCtdYysnI351YmfJDkST4JyE4nMmibKTVWmdF21FKsKy75ayXLRSFGKuWjKvr5aVqIhWlVzSAVoFKTfxO0x7qGFvpr1RItF14h+SfV89q7pazGvqZmhrOaykn0jSCwy1KIhaMFgUNgJOA2iR5mnJJ0xFCRlZfQks3kgr5XECO2sgEiaJLuQNwyy3N88h0TvL8ApEyiMStKn/yzL8xQKYDJeI9MRdlGmfot5TiWdZVSWQoT2+wHIjsfn+fduv20/3zzcrddfHjbvt9uv67sPUMCIesi7mjDYxyaOFtKuAGXwx0XANkeKDK905V3gk9+z/cYFhraqrup/+qf4Sx/Jo9ODoVs32PNnJi83yPnUpiOGqVZietK/tCsju5CDpV1GRZJDUPx07SzTb84V9PFjcIOHtl4uq0X6axcvi3gJK8Dn6x2ZLN8f5dcalTk2mhfns7J9LP0oIaVdSin9CQAA//+E5hY8GAMAAA
+    objectset.rio.cattle.io/id: dd35b93a-f39c-48cb-b2b8-f6053b8ee932
+  creationTimestamp: '2026-01-21T09:00:34Z'
+  generation: 1
+  labels:
+    objectset.rio.cattle.io/hash: f31fee44d8bf5e62178f6b26e81ac32c3cf8beb4
+  managedFields:
+    - apiVersion: apps/v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            .: {}
+            f:objectset.rio.cattle.io/applied: {}
+            f:objectset.rio.cattle.io/id: {}
+          f:labels:
+            .: {}
+            f:objectset.rio.cattle.io/hash: {}
+        f:spec:
+          f:persistentVolumeClaimRetentionPolicy:
+            .: {}
+            f:whenDeleted: {}
+            f:whenScaled: {}
+          f:podManagementPolicy: {}
+          f:replicas: {}
+          f:revisionHistoryLimit: {}
+          f:selector: {}
+          f:serviceName: {}
+          f:template:
+            f:metadata:
+              f:labels:
+                .: {}
+                f:app: {}
+            f:spec:
+              f:containers:
+                k:{"name":"mariadb"}:
+                  .: {}
+                  f:env:
+                    .: {}
+                    k:{"name":"MYSQL_ROOT_PASSWORD"}:
+                      .: {}
+                      f:name: {}
+                      f:value: {}
+                  f:image: {}
+                  f:imagePullPolicy: {}
+                  f:name: {}
+                  f:ports:
+                    .: {}
+                    k:{"containerPort":3306,"protocol":"TCP"}:
+                      .: {}
+                      f:containerPort: {}
+                      f:name: {}
+                      f:protocol: {}
+                  f:resources: {}
+                  f:terminationMessagePath: {}
+                  f:terminationMessagePolicy: {}
+                  f:volumeMounts:
+                    .: {}
+                    k:{"mountPath":"/var/lib/mysql"}:
+                      .: {}
+                      f:mountPath: {}
+                      f:name: {}
+              f:dnsPolicy: {}
+              f:restartPolicy: {}
+              f:schedulerName: {}
+              f:securityContext:
+                .: {}
+                f:fsGroup: {}
+              f:terminationGracePeriodSeconds: {}
+              f:volumes:
+                .: {}
+                k:{"name":"mariadb-storage"}:
+                  .: {}
+                  f:name: {}
+                  f:persistentVolumeClaim:
+                    .: {}
+                    f:claimName: {}
+          f:updateStrategy:
+            f:rollingUpdate:
+              .: {}
+              f:partition: {}
+            f:type: {}
+      manager: agent
+      operation: Update
+      time: '2026-01-21T09:00:34Z'
+    - apiVersion: apps/v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:status:
+          f:collisionCount: {}
+          f:currentReplicas: {}
+          f:currentRevision: {}
+          f:observedGeneration: {}
+          f:replicas: {}
+          f:updateRevision: {}
+          f:updatedReplicas: {}
+      manager: kube-controller-manager
+      operation: Update
+      subresource: status
+      time: '2026-01-21T09:00:35Z'
+  name: mariadb
+  namespace: ecommerce
+  resourceVersion: '459364'
+  uid: e9836ecd-69f6-4598-9d30-09691c229871
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: mariadb
+  serviceName: mariadb-service
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: mariadb
+    spec:
+      containers:
+        - env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: learnk8svn
+          image: mariadb:latest
+          imagePullPolicy: Always
+          name: mariadb
+          ports:
+            - containerPort: 3306
+              name: mysql
+              protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: mariadb-storage
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 65534
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: mariadb-storage
+          persistentVolumeClaim:
+            claimName: nfs-pvc
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+status:
+  availableReplicas: 0
+  collisionCount: 0
+  currentReplicas: 1
+  currentRevision: mariadb-86b6996b48
+  observedGeneration: 1
+  replicas: 1
+  updateRevision: mariadb-86b6996b48
+  updatedReplicas: 1
