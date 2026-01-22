@@ -1,0 +1,9 @@
+apiVersion: v1
+data:
+  OAUTH2_CLIENTID: MG9hYjBsendqb04xUmpzYXI1ZDc=
+  OAUTH2_ISSUER: aHR0cHM6Ly9kZXYtODIxMDgxMTUub2t0YS5jb20vb2F1dGgyL2RlZmF1bHQ=
+kind: Secret
+metadata:
+  name: ecommerce-backend-database-connection-auth-client
+  namespace: ecommerce
+type: Opaque
